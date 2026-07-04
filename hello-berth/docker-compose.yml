@@ -1,0 +1,46 @@
+services:
+
+  frontend:
+    build: ./frontend
+
+    ports:
+      - "${FRONTEND_PORT}:${FRONTEND_PORT}"
+
+    environment:
+      FRONTEND_PORT: ${FRONTEND_PORT}
+      BERTH_NAME: ${BERTH_NAME}
+
+    depends_on:
+      - backend
+
+  backend:
+    build: ./backend
+
+    ports:
+      - "${BACKEND_PORT}:${BACKEND_PORT}"
+
+    environment:
+      BACKEND_PORT: ${BACKEND_PORT}
+      BERTH_NAME: ${BERTH_NAME}
+
+    depends_on:
+      - postgres
+      - redis
+
+  postgres:
+    image: postgres:16
+
+    environment:
+      POSTGRES_USER: demo
+      POSTGRES_PASSWORD: demo
+      POSTGRES_DB: demo
+
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+
+  redis:
+    image: redis:7-alpine
+
+volumes:
+
+  postgres-data:

@@ -1,0 +1,26 @@
+[package]
+name = "berth"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.85"
+description = "Give every AI coding agent its own isolated dev environment — isolated worktree, auto-assigned ports, isolated state, one command up and down."
+authors = ["Zoltan Ersek"]
+license = "MIT"
+readme = "README.md"
+keywords = ["cli", "docker", "worktree", "dev-environment", "agents"]
+categories = ["command-line-utilities", "development-tools"]
+repository = "https://github.com/zoltanersek/berth"
+
+[[bin]]
+name = "berth"
+path = "src/main.rs"
+
+[dependencies]
+clap = { version = "4.6.1", features = ["derive"] }
+fs2 = "0.4.3"
+serde = { version = "1.0.228", features = ["derive"] }
+serde_json = "1.0.150"
+serde_yaml = "0.9.34"
+
+[dev-dependencies]
+tempfile = "3"

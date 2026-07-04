@@ -1,0 +1,10 @@
+version: 1
+
+compose: docker-compose.yml
+
+ports:
+  frontend:
+    env: FRONTEND_PORT
+
+  backend:
+    env: BACKEND_PORT

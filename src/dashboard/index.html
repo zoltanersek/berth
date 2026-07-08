@@ -1,0 +1,329 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Berth dashboard</title>
+<style>
+  :root {
+    --bg: #0d1117; --panel: #161b22; --panel-2: #10151c; --border: #30363d;
+    --text: #e6edf3; --muted: #8b949e; --accent: #4493f8;
+    --green: #3fb950; --amber: #d29922; --red: #f85149;
+    --mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+  }
+  @media (prefers-color-scheme: light) {
+    :root {
+      --bg: #ffffff; --panel: #f6f8fa; --panel-2: #eef1f4; --border: #d0d7de;
+      --text: #1f2328; --muted: #656d76; --accent: #0969da;
+      --green: #1a7f37; --amber: #9a6700; --red: #cf222e;
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+    font-size: 14px; line-height: 1.5;
+  }
+  header {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 14px 24px; border-bottom: 1px solid var(--border);
+    position: sticky; top: 0; background: var(--bg); z-index: 5;
+  }
+  header h1 { font-size: 15px; margin: 0; font-weight: 600; }
+  header h1 b { color: var(--accent); }
+  .meta { color: var(--muted); font-size: 12px; display: flex; gap: 10px; align-items: center; }
+  .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--muted); transition: background .3s; }
+  .dot.live { background: var(--green); }
+  main { padding: 24px; max-width: 1120px; margin: 0 auto; }
+  .grid { display: grid; gap: 16px; grid-template-columns: repeat(auto-fill, minmax(330px, 1fr)); }
+  .empty { color: var(--muted); text-align: center; padding: 64px 0; }
+  .empty code { font-family: var(--mono); background: var(--panel); padding: 2px 6px; border-radius: 5px; }
+  .card {
+    background: var(--panel); border: 1px solid var(--border); border-radius: 10px;
+    padding: 16px; display: flex; flex-direction: column; gap: 12px;
+  }
+  .row { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+  .name { font-weight: 600; font-size: 15px; word-break: break-all; }
+  .sub { color: var(--muted); font-size: 12px; font-family: var(--mono); }
+  .pill {
+    font-size: 10.5px; padding: 2px 9px; border-radius: 20px; border: 1px solid currentColor;
+    text-transform: uppercase; letter-spacing: .5px; white-space: nowrap; font-weight: 600;
+  }
+  .pill.running { color: var(--green); }
+  .pill.stopped { color: var(--muted); }
+  .pill.partial { color: var(--amber); }
+  .ports { display: flex; flex-direction: column; gap: 4px; }
+  .ports a { color: var(--accent); text-decoration: none; font-family: var(--mono); font-size: 12.5px; }
+  .ports a:hover { text-decoration: underline; }
+  .ports .pname { color: var(--muted); }
+  details.env summary {
+    cursor: pointer; color: var(--muted); font-size: 12px; list-style: none; user-select: none;
+  }
+  details.env summary::before { content: "▸ "; }
+  details.env[open] summary::before { content: "▾ "; }
+  .kv { margin-top: 8px; display: grid; grid-template-columns: auto 1fr; gap: 2px 12px; font-family: var(--mono); font-size: 12px; }
+  .kv .k { color: var(--muted); white-space: nowrap; }
+  .kv .v { word-break: break-all; }
+  .actions { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 2px; }
+  button {
+    font: inherit; font-size: 12.5px; padding: 5px 11px; border-radius: 7px; cursor: pointer;
+    background: var(--panel-2); color: var(--text); border: 1px solid var(--border); transition: border-color .15s;
+  }
+  button:hover { border-color: var(--muted); }
+  button.danger { color: var(--red); }
+  button.primary { color: var(--accent); }
+  /* Log drawer */
+  .drawer {
+    position: fixed; left: 0; right: 0; bottom: 0; height: 62vh;
+    background: var(--panel); border-top: 1px solid var(--border);
+    display: flex; flex-direction: column; box-shadow: 0 -12px 40px rgba(0,0,0,.35); z-index: 20;
+  }
+  .drawer.hidden { display: none; }
+  .drawer-head { display: flex; align-items: center; justify-content: space-between; padding: 12px 20px; border-bottom: 1px solid var(--border); }
+  .drawer-head .name { font-size: 14px; }
+  .svcs { display: flex; flex-wrap: wrap; gap: 6px; padding: 10px 20px; border-bottom: 1px solid var(--border); }
+  .svc { font-size: 11.5px; font-family: var(--mono); padding: 2px 8px; border-radius: 6px; border: 1px solid var(--border); color: var(--muted); }
+  .svc.running { color: var(--green); border-color: var(--green); }
+  .svc.exited, .svc.dead { color: var(--red); border-color: var(--red); }
+  .logs {
+    flex: 1; margin: 0; overflow: auto; padding: 12px 20px; background: var(--panel-2);
+    font-family: var(--mono); font-size: 12px; line-height: 1.55; white-space: pre-wrap; word-break: break-word;
+  }
+  .logs .meta-line { color: var(--muted); }
+  /* Toast */
+  #toast {
+    position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%);
+    background: var(--panel); border: 1px solid var(--border); border-radius: 8px;
+    padding: 10px 16px; font-size: 13px; z-index: 30; max-width: 80vw;
+    opacity: 0; transition: opacity .2s; pointer-events: none;
+  }
+  #toast.show { opacity: 1; }
+  #toast.err { border-color: var(--red); color: var(--red); }
+</style>
+</head>
+<body>
+  <header>
+    <h1><b>berth</b> dashboard</h1>
+    <div class="meta">
+      <span id="count"></span>
+      <span class="dot" id="dot"></span>
+      <span id="updated">connecting…</span>
+    </div>
+  </header>
+  <main>
+    <div class="grid" id="grid"></div>
+    <div class="empty" id="empty" hidden>
+      No berths yet. Run <code>berth up &lt;name&gt;</code> to create one.
+    </div>
+  </main>
+
+  <div class="drawer hidden" id="drawer">
+    <div class="drawer-head">
+      <span class="name" id="drawer-title"></span>
+      <button id="drawer-close">✕ close</button>
+    </div>
+    <div class="svcs" id="drawer-svcs"></div>
+    <pre class="logs" id="drawer-logs"></pre>
+  </div>
+
+  <div id="toast"></div>
+
+<script>
+  const TOKEN = "__BERTH_TOKEN__";
+  const grid = document.getElementById("grid");
+  const empty = document.getElementById("empty");
+  const dot = document.getElementById("dot");
+  const updated = document.getElementById("updated");
+  const count = document.getElementById("count");
+
+  const openEnv = new Set();   // berth names whose env panel is expanded
+  let lastBerths = [];
+  let stream = null;           // active log EventSource (one at a time)
+  let streamName = null;
+
+  const esc = (s) => String(s ?? "").replace(/[&<>"]/g, (c) =>
+    ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+
+  function toast(msg, isErr) {
+    const t = document.getElementById("toast");
+    t.textContent = msg;
+    t.className = "show" + (isErr ? " err" : "");
+    clearTimeout(toast._t);
+    toast._t = setTimeout(() => (t.className = ""), 3500);
+  }
+
+  function portsHtml(ports) {
+    if (!ports.length) return '<span class="sub">no ports</span>';
+    return '<div class="ports">' + ports.map((p) =>
+      `<span><span class="pname">${esc(p.env)}</span> → <a href="${esc(p.url)}" target="_blank" rel="noopener">${esc(p.url)}</a></span>`
+    ).join("") + "</div>";
+  }
+
+  function envHtml(b) {
+    const open = openEnv.has(b.name) ? " open" : "";
+    const rows = b.env.map((e) => `<span class="k">${esc(e.key)}</span><span class="v">${esc(e.value)}</span>`).join("");
+    return `<details class="env"${open}>
+      <summary data-action="toggle-env" data-name="${esc(b.name)}">env (${b.env.length})</summary>
+      <div class="kv">${rows || '<span class="sub">empty</span>'}</div>
+    </details>`;
+  }
+
+  function actionsHtml(b) {
+    const running = b.status === "running";
+    const btns = [];
+    if (running) {
+      btns.push(`<button data-action="stop" data-name="${esc(b.name)}">Stop</button>`);
+      btns.push(`<button data-action="restart" data-name="${esc(b.name)}">Restart</button>`);
+    } else {
+      btns.push(`<button class="primary" data-action="start" data-name="${esc(b.name)}">Start</button>`);
+    }
+    btns.push(`<button data-action="logs" data-name="${esc(b.name)}">Logs</button>`);
+    btns.push(`<button class="danger" data-action="down" data-name="${esc(b.name)}">Tear down</button>`);
+    return `<div class="actions">${btns.join("")}</div>`;
+  }
+
+  function renderCards() {
+    empty.hidden = lastBerths.length !== 0;
+    count.textContent = lastBerths.length ? `${lastBerths.length} berth${lastBerths.length > 1 ? "s" : ""}` : "";
+    grid.innerHTML = lastBerths.map((b) => `
+      <div class="card">
+        <div class="row">
+          <span class="name">${esc(b.name)}</span>
+          <span class="pill ${esc(b.status)}">${esc(b.status)}</span>
+        </div>
+        <div class="row">
+          <span class="sub">${esc(b.branch)}</span>
+          <span class="sub">${esc(b.age)}</span>
+        </div>
+        ${portsHtml(b.ports)}
+        ${envHtml(b)}
+        ${actionsHtml(b)}
+      </div>`).join("");
+  }
+
+  async function poll() {
+    if (poll._busy) return;
+    poll._busy = true;
+    try {
+      const res = await fetch(`/api/berths?token=${TOKEN}`);
+      if (!res.ok) throw new Error(res.status);
+      const data = await res.json();
+      lastBerths = data.berths || [];
+      renderCards();
+      dot.classList.add("live");
+      updated.textContent = "updated " + new Date().toLocaleTimeString();
+    } catch (e) {
+      dot.classList.remove("live");
+      updated.textContent = "disconnected";
+    } finally {
+      poll._busy = false;
+    }
+  }
+
+  async function postAction(name, kind, body) {
+    const res = await fetch(`/api/berths/${encodeURIComponent(name)}/${kind}`, {
+      method: "POST",
+      headers: { "X-Berth-Token": TOKEN, "Content-Type": "application/json" },
+      body: JSON.stringify(body || {}),
+    });
+    return res.json();
+  }
+
+  async function simpleAction(name, kind) {
+    toast(`${name}: ${kind}…`);
+    const r = await postAction(name, kind, {});
+    r.ok ? toast(`${name}: ${kind} done`) : toast(r.error || `${kind} failed`, true);
+    poll();
+  }
+
+  async function tearDown(name) {
+    if (!confirm(`Tear down "${name}"?\nThis removes its containers, volumes, worktree and branch.`)) return;
+    let r = await postAction(name, "down", { force: false });
+    if (!r.ok && /unmerged|uncommitted|not merged|changes|merge/i.test(r.error || "")) {
+      if (!confirm(`"${name}" isn't safe to remove:\n\n${r.error}\n\nForce and discard the work?`)) return;
+      r = await postAction(name, "down", { force: true });
+    }
+    r.ok ? toast(`${name} torn down`) : toast(r.error || "tear-down failed", true);
+    poll();
+  }
+
+  // --- log drawer ---
+  const drawer = document.getElementById("drawer");
+  const drawerLogs = document.getElementById("drawer-logs");
+  const drawerSvcs = document.getElementById("drawer-svcs");
+  const drawerTitle = document.getElementById("drawer-title");
+
+  function appendMeta(text) {
+    const div = document.createElement("div");
+    div.className = "meta-line";
+    div.textContent = text;
+    drawerLogs.appendChild(div);
+  }
+
+  function stopStream() {
+    if (stream) { stream.close(); stream = null; streamName = null; }
+  }
+
+  function openDrawer(name) {
+    stopStream();
+    streamName = name;
+    drawerTitle.textContent = name + " — logs";
+    drawerLogs.textContent = "";
+    drawerSvcs.innerHTML = '<span class="sub">loading services…</span>';
+    drawer.classList.remove("hidden");
+    loadServices(name);
+
+    const es = new EventSource(`/api/berths/${encodeURIComponent(name)}/logs?token=${TOKEN}`);
+    es.onmessage = (ev) => {
+      const atBottom = drawerLogs.scrollHeight - drawerLogs.scrollTop - drawerLogs.clientHeight < 60;
+      drawerLogs.appendChild(document.createTextNode(ev.data + "\n"));
+      if (atBottom) drawerLogs.scrollTop = drawerLogs.scrollHeight;
+    };
+    es.addEventListener("end", () => { appendMeta("— containers stopped, stream ended —"); stopStream(); });
+    stream = es;
+  }
+
+  function closeDrawer() {
+    stopStream();
+    drawer.classList.add("hidden");
+  }
+
+  async function loadServices(name) {
+    try {
+      const res = await fetch(`/api/berths/${encodeURIComponent(name)}/services?token=${TOKEN}`);
+      const data = await res.json();
+      if (streamName !== name) return; // drawer changed while loading
+      if (!data.ok) { drawerSvcs.innerHTML = `<span class="sub">${esc(data.error || "no services")}</span>`; return; }
+      if (!data.services.length) { drawerSvcs.innerHTML = '<span class="sub">no containers</span>'; return; }
+      drawerSvcs.innerHTML = data.services.map((s) =>
+        `<span class="svc ${esc(s.state)}">${esc(s.service)} · ${esc(s.state || "?")}${s.health ? " (" + esc(s.health) + ")" : ""}</span>`
+      ).join("");
+    } catch (e) {
+      drawerSvcs.innerHTML = '<span class="sub">failed to load services</span>';
+    }
+  }
+
+  // --- event wiring ---
+  grid.addEventListener("click", (e) => {
+    const el = e.target.closest("[data-action]");
+    if (!el) return;
+    const { action, name } = el.dataset;
+    if (action === "toggle-env") {
+      // Let <details> toggle natively; just remember the state.
+      setTimeout(() => { openEnv.has(name) ? openEnv.delete(name) : openEnv.add(name); }, 0);
+      return;
+    }
+    e.preventDefault();
+    if (action === "logs") openDrawer(name);
+    else if (action === "down") tearDown(name);
+    else simpleAction(name, action);
+  });
+
+  document.getElementById("drawer-close").addEventListener("click", closeDrawer);
+  document.addEventListener("keydown", (e) => { if (e.key === "Escape") closeDrawer(); });
+
+  poll();
+  setInterval(poll, 2000);
+</script>
+</body>
+</html>

@@ -19,7 +19,8 @@ with one command.
 - **Isolated state** — its own Docker Compose project (network, volumes, DB,
   cache), namespaced per berth. Agents never share.
 - **One command up, one command down.**
-- A **live view** of every running berth.
+- A **live view** of every berth — in the terminal (`berth ls`) or a local web
+  **dashboard** (`berth dashboard`).
 
 ## Requirements
 
@@ -70,10 +71,23 @@ URLs:
 | `berth down <name>` | Tear down services + volumes and remove the worktree. Refuses if the branch is unmerged or dirty (see `--force`). |
 | `berth down <name> --force` | Tear down and **discard** the worktree even if unmerged/dirty — for abandoned agents. |
 | `berth ls` | List every berth: name, branch, status, age, ports. |
+| `berth dashboard` | Serve a local web dashboard with live env, ports, status and streaming logs, plus start/stop/restart/tear-down actions. |
 | `berth validate` | Check that `berth.yml` and the referenced compose file are valid. |
 
 All commands accept `--dir <path>` to target a repo other than the current
 directory.
+
+### Dashboard
+
+`berth dashboard` serves a status page for every berth in the repo at
+`http://127.0.0.1:<port>` — an auto-assigned free port by default, or pin one
+with `--port`. It shows each berth's injected env, ports, status and
+**live-streaming logs**, and can start, stop, restart, or tear a berth down from
+the browser.
+
+The server binds to loopback only and gates every request with a per-session
+token, so it is not reachable from other machines. Pass `--no-open` to skip
+opening a browser on startup.
 
 ## Configuration
 

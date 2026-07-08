@@ -1,11 +1,9 @@
 use std::{
-    collections::HashSet,
     path::Path,
-    process::Command,
     time::{SystemTime, UNIX_EPOCH},
 };
 
-use crate::state;
+use crate::{docker, state};
 
 pub fn list(root: &Path) -> Result<(), String> {
     let berths = state::list(root)?;
@@ -15,7 +13,7 @@ pub fn list(root: &Path) -> Result<(), String> {
         return Ok(());
     }
 
-    let running = running_projects().unwrap_or_default();
+    let running = docker::running_projects().unwrap_or_default();
 
     println!(
         "{:<16} {:<16} {:<9} {:<6} PORTS",
@@ -52,7 +50,7 @@ pub fn list(root: &Path) -> Result<(), String> {
 
 /// Render the age of a berth from its creation timestamp as a compact string
 /// (e.g. `3s`, `5m`, `2h`, `4d`). Returns `-` when the timestamp is missing.
-fn format_age(created_at: u64) -> String {
+pub fn format_age(created_at: u64) -> String {
     if created_at == 0 {
         return "-".to_string();
     }
@@ -73,27 +71,6 @@ fn format_age(created_at: u64) -> String {
     } else {
         format!("{}d", secs / 86400)
     }
-}
-
-fn running_projects() -> Result<HashSet<String>, String> {
-    let output = Command::new("docker")
-        .args([
-            "ps",
-            "--format",
-            "{{.Label \"com.docker.compose.project\"}}",
-        ])
-        .output()
-        .map_err(|e| format!("Failed to execute docker: {e}"))?;
-
-    if !output.status.success() {
-        return Err(String::from_utf8_lossy(&output.stderr).trim().to_string());
-    }
-
-    Ok(String::from_utf8_lossy(&output.stdout)
-        .lines()
-        .filter(|line| !line.is_empty())
-        .map(|line| line.to_string())
-        .collect())
 }
 
 #[cfg(test)]

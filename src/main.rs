@@ -1,3 +1,4 @@
+mod dashboard;
 mod docker;
 mod doctor;
 mod down;
@@ -45,6 +46,18 @@ enum Commands {
 
     /// List every berth: name, branch, status, age, and ports.
     Ls,
+
+    /// Serve a local web dashboard of every berth: live env, ports, status,
+    /// and streaming logs, with start/stop/restart/tear-down actions.
+    Dashboard {
+        /// Port to bind on 127.0.0.1. Defaults to an auto-assigned free port.
+        #[arg(long)]
+        port: Option<u16>,
+
+        /// Do not open the dashboard in a browser on startup.
+        #[arg(long)]
+        no_open: bool,
+    },
 }
 
 fn main() {
@@ -86,6 +99,13 @@ fn main() {
 
         Commands::Ls => {
             if let Err(err) = ls::list(&args.dir) {
+                eprintln!("✗ {err}");
+                exit(1);
+            }
+        }
+
+        Commands::Dashboard { port, no_open } => {
+            if let Err(err) = dashboard::serve(&args.dir, port, no_open) {
                 eprintln!("✗ {err}");
                 exit(1);
             }

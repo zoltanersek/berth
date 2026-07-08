@@ -72,6 +72,9 @@ URLs:
 | `berth down <name> --force` | Tear down and **discard** the worktree even if unmerged/dirty — for abandoned agents. |
 | `berth ls` | List every berth: name, branch, status, age, ports. |
 | `berth dashboard` | Serve a local web dashboard with live env, ports, status and streaming logs, plus start/stop/restart/tear-down actions. |
+| `berth agent <name> -- <cmd>` | Create a berth, run `<cmd>` inside its worktree, and safely tear it down when the command exits. |
+| `berth start <name>` / `berth stop <name>` | Bring an existing berth's environment up / stop it (keeps the worktree). |
+| `berth hooks install` | Wire berth into Claude Code / Codex so a berth's environment follows the agent session. |
 | `berth validate` | Check that `berth.yml` and the referenced compose file are valid. |
 
 All commands accept `--dir <path>` to target a repo other than the current
@@ -88,6 +91,34 @@ the browser.
 The server binds to loopback only and gates every request with a per-session
 token, so it is not reachable from other machines. Pass `--no-open` to skip
 opening a browser on startup.
+
+### Agent integration
+
+Bind a berth's lifecycle to a coding agent's. Two ways, use whichever fits:
+
+**Launcher** — one command creates the berth, runs the agent inside its worktree,
+and tears the berth down on exit:
+
+```sh
+berth agent my-feature -- claude      # or: codex, cursor, aider, …
+```
+
+Teardown on exit is a safe `berth down`: it removes the worktree+branch only if
+the branch is **merged and clean**, and otherwise keeps it (run `berth down
+--force` to discard abandoned work). This is the most reliable option and works
+with any agent.
+
+**Hooks** — if you launch the agent yourself, install hooks so the environment
+follows the session:
+
+```sh
+berth hooks install            # Claude Code + Codex; --claude / --codex to pick one, --global for ~/
+```
+
+Session start brings the current worktree's environment up; session end runs the
+same safe teardown (skipping `clear`/`resume`, which only replace the session).
+Codex has no session-end event, so on Codex the end side relies on the launcher
+above. Remove with `berth hooks uninstall`.
 
 ## Configuration
 

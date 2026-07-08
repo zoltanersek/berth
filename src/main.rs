@@ -1,8 +1,10 @@
+mod agent;
 mod dashboard;
 mod docker;
 mod doctor;
 mod down;
 mod env;
+mod hooks;
 mod ls;
 mod ports;
 mod state;
@@ -58,6 +60,28 @@ enum Commands {
         #[arg(long)]
         no_open: bool,
     },
+
+    /// Create a berth, launch an agent inside its worktree, and tear the berth
+    /// down (safely) when the agent exits.
+    Agent {
+        name: String,
+
+        /// The agent command to run, after `--`, e.g. `berth agent x -- claude`.
+        #[arg(trailing_var_arg = true, allow_hyphen_values = true)]
+        command: Vec<String>,
+    },
+
+    /// Bring an existing berth's environment up.
+    Start { name: String },
+
+    /// Stop an existing berth's environment, keeping its worktree.
+    Stop { name: String },
+
+    /// Manage agent-harness hooks (install/uninstall), or run one.
+    Hooks {
+        #[command(subcommand)]
+        action: hooks::HooksCmd,
+    },
 }
 
 fn main() {
@@ -106,6 +130,34 @@ fn main() {
 
         Commands::Dashboard { port, no_open } => {
             if let Err(err) = dashboard::serve(&args.dir, port, no_open) {
+                eprintln!("✗ {err}");
+                exit(1);
+            }
+        }
+
+        Commands::Agent { name, command } => {
+            if let Err(err) = agent::agent(&args.dir, &name, &command) {
+                eprintln!("✗ {err}");
+                exit(1);
+            }
+        }
+
+        Commands::Start { name } => {
+            if let Err(err) = agent::start(&args.dir, &name) {
+                eprintln!("✗ {err}");
+                exit(1);
+            }
+        }
+
+        Commands::Stop { name } => {
+            if let Err(err) = agent::stop(&args.dir, &name) {
+                eprintln!("✗ {err}");
+                exit(1);
+            }
+        }
+
+        Commands::Hooks { action } => {
+            if let Err(err) = hooks::dispatch(action, &args.dir) {
                 eprintln!("✗ {err}");
                 exit(1);
             }

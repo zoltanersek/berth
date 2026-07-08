@@ -8,12 +8,23 @@ pub struct Config {
     pub compose: String,
     #[serde(default)]
     pub ports: HashMap<String, PortConfig>,
+    #[serde(default)]
+    pub snapshot: Option<SnapshotConfig>,
 }
 
 #[derive(Debug, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct PortConfig {
     pub env: String,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct SnapshotConfig {
+    /// Compose volume names to snapshot. When omitted, every volume in the
+    /// berth's Compose project is captured.
+    #[serde(default)]
+    pub volumes: Option<Vec<String>>,
 }
 
 #[derive(Debug, Serialize, Deserialize, Default)]

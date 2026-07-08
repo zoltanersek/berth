@@ -88,6 +88,7 @@ mod tests {
             version: 1,
             compose: "docker-compose.yml".to_string(),
             ports: HashMap::new(),
+            snapshot: None,
         }
     }
 

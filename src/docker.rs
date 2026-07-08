@@ -151,3 +151,76 @@ pub fn running_projects() -> Result<HashSet<String>, String> {
         .map(|line| line.to_string())
         .collect())
 }
+
+/// Actual Docker volume names belonging to a Compose project (via its
+/// `com.docker.compose.project` label).
+pub fn project_volumes(project: &str) -> Result<Vec<String>, String> {
+    let output = Command::new("docker")
+        .args([
+            "volume",
+            "ls",
+            "--filter",
+            &format!("label=com.docker.compose.project={project}"),
+            "--format",
+            "{{.Name}}",
+        ])
+        .output()
+        .map_err(|e| format!("Failed to execute docker: {e}"))?;
+
+    if !output.status.success() {
+        return Err(String::from_utf8_lossy(&output.stderr).trim().to_string());
+    }
+
+    Ok(String::from_utf8_lossy(&output.stdout)
+        .lines()
+        .filter(|line| !line.is_empty())
+        .map(|line| line.to_string())
+        .collect())
+}
+
+/// Tar the contents of a Docker volume into `<host_dir>/<tar_name>` using a
+/// throwaway `busybox` container. `tar` preserves uid/gid, so file ownership
+/// (e.g. Postgres' `999`) survives the round trip.
+pub fn backup_volume(volume: &str, host_dir: &Path, tar_name: &str) -> Result<(), String> {
+    volume_copy(&[
+        "-v",
+        &format!("{volume}:/from:ro"),
+        "-v",
+        &format!("{}:/backup", host_dir.display()),
+        "busybox",
+        "tar",
+        "cf",
+        &format!("/backup/{tar_name}"),
+        "-C",
+        "/from",
+        ".",
+    ])
+}
+
+/// Replace a Docker volume's contents with those of `<host_dir>/<tar_name>`.
+pub fn restore_volume(volume: &str, host_dir: &Path, tar_name: &str) -> Result<(), String> {
+    volume_copy(&[
+        "-v",
+        &format!("{volume}:/to"),
+        "-v",
+        &format!("{}:/backup", host_dir.display()),
+        "busybox",
+        "sh",
+        "-c",
+        &format!("rm -rf /to/* /to/.[!.]* /to/..?* 2>/dev/null; tar xf /backup/{tar_name} -C /to"),
+    ])
+}
+
+fn volume_copy(args: &[&str]) -> Result<(), String> {
+    let output = Command::new("docker")
+        .args(["run", "--rm"])
+        .args(args)
+        .output()
+        .map_err(|e| format!("Failed to execute docker: {e}"))?;
+
+    if !output.status.success() {
+        return Err(String::from_utf8_lossy(&output.stderr).trim().to_string());
+    }
+
+    Ok(())
+}

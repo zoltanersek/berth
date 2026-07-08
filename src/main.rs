@@ -7,6 +7,7 @@ mod env;
 mod hooks;
 mod ls;
 mod ports;
+mod snapshot;
 mod state;
 mod types;
 mod up;
@@ -34,7 +35,14 @@ enum Commands {
     Validate,
 
     /// Create a worktree + isolated dev environment with auto-assigned ports.
-    Up { name: String },
+    Up {
+        name: String,
+
+        /// After bringing the berth up, restore this snapshot into it
+        /// (defaults to `baseline` when given without a value).
+        #[arg(long, num_args = 0..=1, default_missing_value = "baseline")]
+        seed: Option<String>,
+    },
 
     /// Tear down a berth's services and volumes and remove its worktree.
     Down {
@@ -82,6 +90,20 @@ enum Commands {
         #[command(subcommand)]
         action: hooks::HooksCmd,
     },
+
+    /// Capture and manage snapshots of a berth's data volumes.
+    Snapshot {
+        #[command(subcommand)]
+        action: snapshot::SnapshotCmd,
+    },
+
+    /// Reset a berth's volumes to a saved snapshot (defaults to `baseline`).
+    Reset {
+        name: String,
+
+        #[arg(default_value = "baseline")]
+        label: String,
+    },
 }
 
 fn main() {
@@ -103,10 +125,17 @@ fn main() {
             }
         },
 
-        Commands::Up { name } => {
+        Commands::Up { name, seed } => {
             if let Err(err) = up::up(&args.dir, &name) {
                 eprintln!("✗ {err}");
                 exit(1);
+            }
+
+            if let Some(label) = seed {
+                if let Err(err) = snapshot::restore(&args.dir, &name, &label) {
+                    eprintln!("✗ {err}");
+                    exit(1);
+                }
             }
 
             println!("✓ Berth '{name}' is running.");
@@ -158,6 +187,20 @@ fn main() {
 
         Commands::Hooks { action } => {
             if let Err(err) = hooks::dispatch(action, &args.dir) {
+                eprintln!("✗ {err}");
+                exit(1);
+            }
+        }
+
+        Commands::Snapshot { action } => {
+            if let Err(err) = snapshot::dispatch(action, &args.dir) {
+                eprintln!("✗ {err}");
+                exit(1);
+            }
+        }
+
+        Commands::Reset { name, label } => {
+            if let Err(err) = snapshot::restore(&args.dir, &name, &label) {
                 eprintln!("✗ {err}");
                 exit(1);
             }

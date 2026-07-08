@@ -75,6 +75,8 @@ URLs:
 | `berth agent <name> -- <cmd>` | Create a berth, run `<cmd>` inside its worktree, and safely tear it down when the command exits. |
 | `berth start <name>` / `berth stop <name>` | Bring an existing berth's environment up / stop it (keeps the worktree). |
 | `berth hooks install` | Wire berth into Claude Code / Codex so a berth's environment follows the agent session. |
+| `berth snapshot save <name> [label]` | Capture a berth's data volumes as a named snapshot (default `baseline`). |
+| `berth reset <name> [label]` | Reset a berth's volumes to a saved snapshot. |
 | `berth validate` | Check that `berth.yml` and the referenced compose file are valid. |
 
 All commands accept `--dir <path>` to target a repo other than the current
@@ -119,6 +121,25 @@ Session start brings the current worktree's environment up; session end runs the
 same safe teardown (skipping `clear`/`resume`, which only replace the session).
 Codex has no session-end event, so on Codex the end side relies on the launcher
 above. Remove with `berth hooks uninstall`.
+
+### Snapshots & reset
+
+Capture a berth's data volumes at a known baseline and roll any berth back to it
+— for reproducible starting state and fast recovery from a wrecked database:
+
+```sh
+berth snapshot save api baseline   # capture api's volumes
+berth reset api baseline           # …later, restore them (or just `berth reset api`)
+berth up api2 --seed baseline      # start a fresh berth pre-seeded with that data
+```
+
+Snapshots are engine-agnostic (they tar the Docker volumes, so any service
+works) and keyed by label, so a baseline captured from one berth can seed
+another. The berth's containers are stopped briefly during capture/restore for a
+consistent copy — fast, not literally instant. Snapshots live under the
+gitignored `.berth/`, so they're local, not a committed team seed. `berth
+snapshot list` / `berth snapshot rm <label>` manage them; add
+`snapshot: { volumes: [...] }` to `berth.yml` to capture only some volumes.
 
 ## Configuration
 

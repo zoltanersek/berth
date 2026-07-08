@@ -47,6 +47,7 @@ mod tests {
             version: 1,
             compose: "docker-compose.yml".to_string(),
             ports,
+            snapshot: None,
         }
     }
 
